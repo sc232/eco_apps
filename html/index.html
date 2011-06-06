@@ -1,0 +1,22 @@
+{% extends "template.html" %}
+
+{% block title %}List of Apps{% endblock %}
+
+{% block content %}
+<h1>List of Apps</h1>
+<h2>Treemaps</h2>
+<ul>
+	<li><a href="/treemap_of_exports">Treemap of Exports</a></li>
+	<li><a href="/treemap_of_imports">Treemap of Imports</a></li>
+</ul>
+<h2>Product Space</h2>
+<ul>
+	<li><a href="/product_space">Product Space</a></li>
+	<li>Density Product Space</li>
+</ul>
+<h2>Stacked Charts</h2>
+<ul>
+	<li><a href="/stacked_share">Stacked Share</a></li>
+	<li><a href="/stacked_value">Stacked Value</a></li>
+</ul>
+{% endblock %}

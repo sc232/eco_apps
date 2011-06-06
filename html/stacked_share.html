@@ -1,0 +1,102 @@
+{% extends "template.html" %}
+
+{% block title %}Stacked Share{% endblock %}
+
+{% block js %}
+
+<script type="text/javascript" src="/media/js/libs/raphael_1.5.2.js"></script>
+<script type="text/javascript">
+
+// Put JSON from server into JS var
+var data = {{ data|safe }};
+
+$(document).ready(function(){
+	var w = 800; var h = 600;
+	paper = Raphael(document.getElementById("infovis"), w+200, h);
+	var c = paper.rect(0, 0, w, h);
+	c.attr({fill: "#fff", stroke: "#000", opacity: 1});
+	
+	paths = [];
+	counter = 0;
+	for(var year in data){
+		var x_interval = w / (Object.keys(data).length - 1)
+		var x = x_interval * counter
+		
+		var sum = 0;
+		for(var product in data[year]){
+			sum += data[year][product][0]
+		}
+		
+		var current_h = 0;
+		// for(var i = 0; i < data[year].length; i++){
+		for(var p in data[year]){
+
+			var share = data[year][p][0] / sum;
+			var y = (share * h) + current_h;
+			current_h += share * h
+			if(paths[p] === undefined){
+				paths[p] = [[x, y, data[year][p][2]]]
+			} else {
+				paths[p].push([x, y, data[year][p][2]])
+			}
+			
+		}
+		
+		counter++;
+	}
+	
+	// console.log(paths); return;
+	var z = 0
+	var last_path_id = null
+
+	for(p in paths){
+		// console.log(p)
+		var last_path = paths[last_path_id]
+		var current_path = paths[p]
+		
+		console.log("last path = \n")
+		console.log(last_path)
+		
+		var path = "M0,0"
+		if(last_path_id){
+			path = "M"+last_path[0][0]+","+last_path[0][1]
+		}
+		
+		
+		path += "L0," + current_path[0][1]
+		for(xy in current_path){
+			path += "L" + current_path[xy][0] + "," + current_path[xy][1]
+		}
+		if(last_path_id){
+			path += "L"+last_path[last_path.length-1][0]+","+last_path[last_path.length-1][1]
+			for(xy in last_path){
+				i = (last_path.length-1) - xy
+				path += "L" + last_path[i][0] + "," + last_path[i][1]
+			}
+		} else {
+			path += "L" + w + ",0"
+			path += "L0,0"
+		}
+		
+		// console.log(path)
+		c = paper.path(path)
+		// console.log(paths[p][0][2])
+		c.attr({fill: paths[p][0][2], stroke: "#000", opacity: 1});
+		c.click(function(){alert('you clicked me!!!')})
+		c.hover(function(){this.attr({opacity: 0.8})}, function(){this.attr({opacity: 1})})
+		
+		last_path_id = p
+		
+		z++
+		
+	}
+
+})
+</script>
+
+{% endblock %}
+
+{% block content %}
+<h1>Stacked Share</h1>
+<div id="infovis"></div>
+{% endblock %}
