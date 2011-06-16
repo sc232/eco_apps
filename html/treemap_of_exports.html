@@ -2,6 +2,182 @@
 
 {% block title %}Treemap of Exports{% endblock %}
 
+{% block js %}
+<script type="text/javascript" src="/media/js/libs/raphael_1.5.2.js"></script>
+<script type="text/javascript">
+var data = {{data|safe}};
+// Global Vars
+var all_windows = new Array(); // Holds all windows
+var cluster_windows = new Array(); // Holds current grouping of windows
+
+// Returns the maximum value given an array of numbers
+function max(list_numbers){
+	var max = 0;
+	for(var i = 0; i < list_numbers.length; i++){
+		max = Math.max(max, list_numbers[i])
+	}
+	return max
+}
+
+// Returns the maximum value given an array of numbers
+function max_list(list_numbers, return_list){
+	var max = 0;
+	var index_to_return;
+	for(var i = 0; i < list_numbers.length; i++){
+		old_max = max;
+		max = Math.max(max, list_numbers[i][0])
+		if(old_max != max){
+			index_to_return = i
+		}
+	}
+	if(return_list){
+		return list_numbers[index_to_return]
+	} else {
+		return list_numbers[index_to_return][0]	
+	}
+}
+
+// Returns an ordered list of lists (desc) given an unordered list of lists
+function ordered_list(list_of_lists){
+	var max = new Array()
+	var current_sum = [0, 0]
+	var check_sum = [0, 0]
+	var max_list
+	while (list_of_lists.length > 0){
+		max_list = [0, 0]
+		check_sum = [0, 0]
+		for (var i = 0; i < list_of_lists.length; i++) {
+			if (check_sum[0] < sum_list(list_of_lists[i], true)[0]) {
+				check_sum = sum_list(list_of_lists[i], true)
+				max_list = list_of_lists[i]
+			}
+		}
+		max.push(max_list)
+		index_of_max = list_of_lists.indexOf(max_list);
+		list_of_lists.splice(index_of_max, 1);		
+	}
+	return max
+}
+
+// Returns the minimum value given an array of numbers
+function min(list_numbers){
+	var min = 0;
+	for(var i = 0; i < list_numbers.length; i++){
+		min = Math.min(min, list_numbers[i])
+	}
+	return min
+}
+
+// Returns the sum from an array of numbers
+function sum(list_numbers){
+	var total = 0;
+	for(var i = 0; i < list_numbers.length; i++){
+		total += list_numbers[i];
+	}
+	return total
+}
+
+// Returns the sum from an array of numbers
+function sum_list(list_of_lists, return_list){
+	var total = 0;
+	for(var i = 0; i < list_of_lists.length; i++){
+		total += list_of_lists[i][0];
+	}
+	if(return_list){
+		return [total, list_of_lists[0][1]]
+	} else {
+		return total
+	}
+}
+
+// Warning: This is a recursive function! all variables must have 'var' keyword
+// so they are not global in scope otherwise this WILL fuck up your code
+function tree(list_items, win, is_cluster){
+	var w = win[0]; // width
+	var h = win[1]; // height
+	var pos = win[2]; // position of given window
+	var color = win[3];
+	var opacity = win[4];
+	var new_win; // window to be created
+	var other_win; // rest of area in given window
+	var new_list = new Array();
+	var total = 0;
+	var normalize = sum_list(list_items, false); // to divide by for creating list of percentages
+	var list_percentages = new Array();
+	for(var i = 0; i < list_items.length; i++){
+		list_percentages[i] = [list_items[i][0]/normalize, list_items[i][1]];
+	}
+	while(list_percentages.length > 0){
+		total +=  max_list(list_percentages, false);
+		var c = max_list(list_percentages, true)[1];
+		new_list.push(max_list(list_percentages, true));
+		var index_of_max = list_percentages.indexOf(max_list(list_percentages, true));
+		list_percentages.splice(index_of_max, 1);
+		if (total >= 1.0) {
+			if(is_cluster){
+				cluster_windows.push(win)
+			} else {
+				all_windows.push(win);	
+			}
+			return;
+		}
+		if (total >= .4){
+			if(h < w){
+				new_win = [w*total, h, pos, c, opacity];
+				other_win = [w*(1 - total), h, [pos[0]+w*total, pos[1]], c, opacity];
+			}
+			else {
+				new_win = [w, h*total, pos, c, opacity];
+				other_win = [w, h*(1 - total), [pos[0], pos[1]+h*total], c, opacity];
+			}
+			tree(new_list, new_win, is_cluster);
+			tree(list_percentages, other_win,  is_cluster);
+			return;
+		}
+	}
+}
+
+// Given a list of lists and parent window, this will generate a
+// full on treemap by adding the windows to the global variable all_windows
+function cluster(list_of_lists, win) {
+	var list_of_sums = new Array();
+	for(i in list_of_lists) {
+		list_of_sums.push(sum_list(list_of_lists[i], true));
+	}
+	// console.log(list_of_sums)
+	tree(list_of_sums, win, true)
+	var ordered_lol = ordered_list(list_of_lists)
+	for(i in ordered_lol){
+		tree(ordered_lol[i], cluster_windows[i], false)
+	}
+}
+
+// Loop through each window and draw it!
+function draw(infovis){
+	for(i in all_windows){
+		x = infovis.rect(all_windows[i][2][0], all_windows[i][2][1], all_windows[i][0], all_windows[i][1])
+		x.attr({'fill':all_windows[i][3]})
+	}
+}
+
+$(document).ready(function(){
+	
+	// width and height of visualization
+	var w = 800, h = 525;
+	
+	// The raphael object to draw to
+	var infovis = Raphael(document.getElementById("infovis"), w, h);
+	// window = [width, height, [x, y], color, opacity]
+	var win = [w, h, [0, 0], null, null];
+	cluster(data, win);
+	draw(infovis)
+	
+});
+
+</script>
+{% endblock %}
+
 {% block content %}
 <h1>Treemap of Exports</h1>
+<div id="infovis">
 {% endblock %}
