@@ -1,0 +1,315 @@
+{% extends "template.html" %}
+
+{% block title %}Treemap of Exports{% endblock %}
+
+{% block js %}
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+<!-- run from the original source files: -->
+<!-- <script src="../../src/etc.js"></script>
+     <script src="../../src/kernel.js"></script>
+     <script src="../../src/graphics/colors.js"></script>
+     <script src="../../src/graphics/primitives.js"></script>
+     <script src="../../src/graphics/graphics.js"></script>
+     <script src="../../src/tween/easing.js"></script>
+     <script src="../../src/tween/tween.js"></script>
+     <script src="../../src/physics/atoms.js"></script>
+     <script src="../../src/physics/physics.js"></script>
+     <script src="../../src/physics/system.js"></script>
+     <script src="../../src/dev.js"></script> -->
+<!-- run from the minified library file: -->
+<script src="/media/js/libs/arbor.js"></script>
+
+<script type="text/javascript">
+function change_range(x, old_range, new_range){
+	var old_range_delta = old_range[1] - old_range[0]
+	var new_range_delta = new_range[1] - new_range[0]
+	var new_value = (((x - old_range[0]) * new_range_delta) / old_range_delta) + new_range[0]
+	return new_value
+}
+function drawLabel( ctx, text, p1, p2, alignment, padding ){
+	if (!alignment) alignment = 'center';
+	if (!padding) padding = 0;
+
+	var dx = p2.x - p1.x;
+	var dy = p2.y - p1.y;
+	var len = Math.sqrt(dx*dx+dy*dy);
+	var avail = len - 2*padding;
+
+	var textToDraw = text;
+	if (ctx.measureText && ctx.measureText(textToDraw).width > avail){
+		while (textToDraw && ctx.measureText(textToDraw+"…").width > avail) textToDraw = textToDraw.slice(0,-1);
+		textToDraw += "…";
+	}
+
+	// Keep text upright
+	var angle = Math.atan2(dy,dx);
+	if (angle < -Math.PI/2 || angle > Math.PI/2){
+		var p = p1;
+		p1 = p2;
+		p2 = p;
+		dx *= -1;
+		dy *= -1;
+		angle -= Math.PI;
+	}
+
+	var p, pad;
+	if (alignment=='center'){
+		p = p1;
+		pad = 1/2;
+	} else {
+		var left = alignment=='left';
+		p = left ? p1 : p2;
+		pad = padding / len * (left ? 1 : -1);
+	}
+	ctx.save();
+	ctx.textAlign = alignment;
+	ctx.translate(p.x+dx*pad,p.y+dy*pad);
+	ctx.rotate(angle);
+	ctx.fillText(textToDraw,0,0);
+	ctx.restore();
+}
+
+(function($){
+
+	var Renderer = function(canvas){
+		// Init Variables
+		var canvas = $(canvas).get(0);
+		var ctx = canvas.getContext("2d");
+		var particleSystem;
+		var show_text = false;
+
+		var that = {
+			init:function(system){
+	        	//
+		        // the particle system will call the init function once, right before the
+		        // first frame is to be drawn. it's a good place to set up the canvas and
+		        // to pass the canvas size to the particle system
+		        //
+		        // save a reference to the particle system for use in the .redraw() loop
+		        particleSystem = system
+
+		        // inform the system of the screen dimensions so it can map coords for us.
+		        // if the canvas is ever resized, screenSize should be called again with
+		        // the new dimensions
+		        particleSystem.screenSize(canvas.width, canvas.height) 
+		        particleSystem.screenPadding(80) // leave an extra 80px of whitespace per side
+
+		        // set up some event handlers to allow for node-dragging
+		        that.initMouseHandling()
+			},
+
+			redraw:function(){
+				// 
+				// redraw will be called repeatedly during the run whenever the node positions
+				// change. the new positions for the nodes can be accessed by looking at the
+				// .p attribute of a given node. however the p.x & p.y values are in the coordinates
+				// of the particle system rather than the screen. you can either map them to
+				// the screen yourself, or use the convenience iterators .eachNode (and .eachEdge)
+				// which allow you to step through the actual node objects but also pass an
+				// x,y point in the screen's coordinate system
+				// 
+				ctx.fillStyle = "white"
+				ctx.fillRect(0,0, canvas.width, canvas.height)
+
+				particleSystem.eachEdge(function(edge, pt1, pt2){
+					// console.log(ctx)
+					// edge: {source:Node, target:Node, length:#, data:{}}
+					// pt1:  {x:#, y:#}  source position in screen coords
+					// pt2:  {x:#, y:#}  target position in screen coords
+
+					// draw a line from pt1 to pt2
+					ctx.strokeStyle = "rgba(0,0,0, .333)"
+					ctx.lineWidth = edge.data.proximity*10
+					ctx.beginPath()
+					ctx.moveTo(pt1.x, pt1.y)
+					ctx.lineTo(pt2.x, pt2.y)
+					ctx.stroke()
+					ctx.fillStyle = "black"
+					drawLabel(ctx, edge.data.proximity.toFixed(4), pt1, pt2, "center", 1.2);
+					// drawLabel(ctx, edge.length, pt1, pt2, "center", 1.2);
+				})
+
+				particleSystem.eachNode(function(node, pt){
+					// node: {mass:#, p:{x,y}, name:"", data:{}}
+					// pt:   {x:#, y:#}  node position in screen coords
+
+					// draw a rectangle centered at pt
+					var w = Math.pow(change_range(node.data.size, [2.50242712, 8.693678594], [0, 3.25]), 2.5)
+					ctx.font = "bold 12px sans-serif";
+					ctx.fillStyle = node.data.color
+					ctx.beginPath();
+					ctx.arc(pt.x-w/2, pt.y-w/2, w, 0, Math.PI * 2, false);
+					ctx.fill();
+					ctx.stroke();
+					// ctx.fillRect(pt.x-w/2, pt.y-w/2, w,w)
+					if(node.data.selected){
+						ctx.textAlign = 'center'
+						ctx.fillText(node.data.name, pt.x-w/2, pt.y-w/2 - 19);
+					}
+				
+				})    			
+			}, // End redraw
+
+			initMouseHandling:function(){
+		        // no-nonsense drag and drop (thanks springy.js)
+		        var dragged = null;
+
+		        // set up a handler object that will initially listen for mousedowns then
+		        // for moves and mouseups while dragging
+				var handler = {
+					dblclicked: function(e){
+						var pos = $(canvas).offset();
+						_mouseP = arbor.Point(e.pageX-pos.left, e.pageY-pos.top)
+						the_node = particleSystem.nearest(_mouseP).node;
+						console.log(the_node)
+						var temp_redraw = that.redraw
+						that.redraw = function(){
+							w = ctx.measureText('Loading... ').width
+							ctx.fillStyle = "red"
+							ctx.fillRect(0, 0, w, 16)
+							ctx.fillStyle = "black"
+							ctx.textAlign = "left"
+							ctx.textBaseline = "top"
+							ctx.fillText("Loading... ", 2, 2)
+						}
+						// tell users we are loading something! and to chill the fuck out
+						$.getJSON('/proximity_network/'+the_node.name+'?format=json', function(data, textStatus, jqXHR){
+							if(textStatus == 'success'){
+								that.redraw = temp_redraw
+								that.redraw()
+								// Add to output list
+								$('#output').append('<div class="node_show"><p class="selected_node">'+the_node.data.name+'</p><ol></ol></div>')
+								for(i in data){
+									particleSystem.addNode(i, {name:data[i][0], code: data[i][1], color: data[i][2], size: data[i][4], selected: false})
+									particleSystem.addEdge(the_node.name, i, {length:Math.pow((1-data[i][3])+1, 4), proximity:data[i][3]})
+									// append to output list
+									$('.node_show:last ol').append('<li>'+data[i][0]+'<br /><strong>&Phi; '+data[i][3].toFixed(4)+'</strong></li>')
+								}
+							}
+						}) // End JSON ajax request
+					}, // End doubleclicked
+					clicked:function(e){
+						var pos = $(canvas).offset();
+						_mouseP = arbor.Point(e.pageX-pos.left, e.pageY-pos.top)
+						dragged = particleSystem.nearest(_mouseP);
+
+						if (dragged && dragged.node !== null){
+							// while we're dragging, don't let physics move the node
+							dragged.node.fixed = true
+							dragged.node.data.selected = true
+						}
+
+						$(canvas).bind('mousemove', handler.dragged)
+						$(window).bind('mouseup', handler.dropped)
+
+						return false
+					}, // End clicked
+					dragged: function(e){
+						var pos = $(canvas).offset();
+						var s = arbor.Point(e.pageX-pos.left, e.pageY-pos.top)
+
+						if (dragged && dragged.node !== null){
+						var p = particleSystem.fromScreen(s)
+							dragged.node.p = p
+						}
+						return false
+					}, // End draged
+					dropped: function(e){
+						if (dragged===null || dragged.node===undefined) return
+						if (dragged.node !== null) dragged.node.fixed = false
+						dragged.node.tempMass = 1000
+						dragged.node.data.selected = false
+						dragged = null
+						$(canvas).unbind('mousemove', handler.dragged)
+						$(window).unbind('mouseup', handler.dropped)
+						_mouseP = null
+						return false
+					}, // End dropped
+					moved:function(e){
+						var pos = $(canvas).offset();
+						_mouseP = arbor.Point(e.pageX-pos.left, e.pageY-pos.top);
+						nearest_object = particleSystem.nearest(_mouseP);
+						if(nearest_object.distance < 10){
+							nearest_object.node.data.selected = true;
+						} else {
+							nearest_object.node.data.selected = false;
+						}
+						return false
+					}, // End moved
+	        	} // end var handler
+
+				// start listening
+				$(canvas).mousedown(handler.clicked);
+				$(canvas).dblclick(handler.dblclicked);
+				$(canvas).mousemove(handler.moved);
+			}, // end initMouseHandling
+
+	    }// end that
+
+    return that // why do we return this???
+
+	} // end renderer
+
+	$(document).ready(function(){
+		// set width to take up whole page
+		$('#main').css({'width': 'auto', 'margin': '20px'})
+		// $('canvas').css('width', $('#main').css('width'))
+		// Use data from DB
+		var data = {{data|safe}};
+		// create the system with sensible repulsion/stiffness/friction
+		var sys = arbor.ParticleSystem(50, 200, 0.1)
+		// use center-gravity to make the graph settle nicely (ymmv)
+		sys.parameters({gravity:true}) 
+		// our newly created renderer will have its .init() method called shortly by sys...
+		sys.renderer = Renderer("#viewport") 
+		// OUR node i.e. the one we selected in the URL
+		sys.addNode({{selected_product.id}}, {
+				name:"{{selected_product.name}}", 
+				code: "{{selected_product.code}}", 
+				color: "{{selected_product.leamer.color}}",
+				size: {{selected_product.ps_size}},
+				selected: false
+		})
+		for(i in data){
+			// data = [0=name, 1=code, 2=color, 3=prox, 4=ps_size]
+			sys.addNode(i, {name:data[i][0], code: data[i][1], color: data[i][2], size: data[i][4], selected: false})
+			sys.addEdge({{selected_product.id}}, i, {
+				length:Math.pow((1-data[i][3])+1, 4), 
+				proximity:data[i][3]
+			})
+			// add to output list
+			$('.node_show ol').eq(0).append('<li>'+data[i][0]+'<br /><strong>&Phi; '+data[i][3].toFixed(4)+'</strong></li>')
+		}
+	}) // End onload
+
+})(this.jQuery)
+	
+</script>
+
+<style>
+.node_show{
+	border: solid 1px gray;
+	float: left;
+	margin: 0 10px 0 0;
+	padding: 5px;
+	width: 200px;
+}
+p.selected_node {
+	font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Proximity Network</h1>
+<h2>{{selected_product.name}}</h2>
+<canvas id="viewport" width="1200" height="600"></canvas>
+<div id="output">
+	<h3>Output</h3>
+	<div class="node_show">
+		<p class="selected_node">{{selected_product.name}} ({{selected_product.code}})</p>
+		<ol>
+		</ol>
+	</div>
+</div>
+{% endblock %}
