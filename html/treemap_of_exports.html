@@ -6,6 +6,7 @@
 <script type="text/javascript" src="/media/js/libs/raphael_1.5.2.js"></script>
 <script type="text/javascript">
 var data = {{data|safe}};
+var coloring = "{{coloring|safe}}";
 // Global Vars
 var all_windows = new Array(); // Holds all windows
 var cluster_windows = new Array(); // Holds current grouping of windows
@@ -107,7 +108,7 @@ function tree(list_items, win, is_cluster){
 	var h = win[1]; // height
 	var pos = win[2]; // position of given window
 	var color = win[3];
-	var opacity = win[4];
+	var rca = win[4];
 	var text = win[5];
 	var new_win; // window to be created
 	var other_win; // rest of area in given window
@@ -117,12 +118,13 @@ function tree(list_items, win, is_cluster){
 	var list_percentages = new Array();
 	// translate list of values into list of percentages
 	for(var i = 0; i < list_items.length; i++){
-		list_percentages[i] = [list_items[i][0]/normalize, list_items[i][1], list_items[i][2]];
+		list_percentages[i] = [list_items[i][0]/normalize, list_items[i][1], list_items[i][2], list_items[i][3]];
 	}
 	while(list_percentages.length > 0){
 		total +=  max_list(list_percentages, false);
 		var c = max_list(list_percentages, true)[1];
 		var t = max_list(list_percentages, true)[2];
+		var r = max_list(list_percentages, true)[3];
 		new_list.push(max_list(list_percentages, true));
 		var index_of_max = list_percentages.indexOf(max_list(list_percentages, true));
 		list_percentages.splice(index_of_max, 1);
@@ -136,12 +138,12 @@ function tree(list_items, win, is_cluster){
 		}
 		if (total >= .4){
 			if(h < w){
-				new_win = [w*total, h, pos, c, opacity, t];
-				other_win = [w*(1 - total), h, [pos[0]+w*total, pos[1]], c, opacity, t];
+				new_win = [w*total, h, pos, c, r, t];
+				other_win = [w*(1 - total), h, [pos[0]+w*total, pos[1]], c, r, t];
 			}
 			else {
-				new_win = [w, h*total, pos, c, opacity, t];
-				other_win = [w, h*(1 - total), [pos[0], pos[1]+h*total], c, opacity, t];
+				new_win = [w, h*total, pos, c, r, t];
+				other_win = [w, h*(1 - total), [pos[0], pos[1]+h*total], c, r, t];
 			}
 			tree(new_list, new_win, is_cluster);
 			tree(list_percentages, other_win,  is_cluster);
@@ -176,9 +178,27 @@ function cluster(list_of_lists, win) {
 // Loop through each window and draw it!
 function draw(infovis){
 	for(i in all_windows){
-		var x = all_windows[i][2][0], y = all_windows[i][2][1], w = all_windows[i][0], h = all_windows[i][1], c = all_windows[i][3], t = all_windows[i][5];
+		var x = all_windows[i][2][0], 
+			y = all_windows[i][2][1], 
+			w = all_windows[i][0], 
+			h = all_windows[i][1], 
+			c = all_windows[i][3], 
+			r = all_windows[i][4], 
+			t = all_windows[i][5];
 		var box = infovis.rect(x, y, w, h)
-		box.attr({'fill': c})
+		// box.attr({'fill': c, 'fill-opacity': 0.5})
+		hsl = infovis.raphael.rgb2hsl(c)
+		
+		var lightness = 4;
+		if(r > 2) lightness = 3;
+		if(r > 4) lightness = 2;
+		if(r > 8) lightness = 1;
+		if(r > 16) lightness = 0;
+		diff = 1 - hsl.l
+		segs = diff / 6
+		xx = hsl.l + segs*lightness
+		// console.log(xx)
+		box.attr("fill", "hsl("+hsl.h+", "+hsl.s+", "+xx+")")
 		
 		if(w * h > 2000){
 			var newlines = 0
@@ -205,6 +225,56 @@ function draw(infovis){
 	}
 }
 
+// Loop through each window and draw it with net values for coloring!
+function net_draw(infovis){
+	net_values = $.map(all_windows, function(e, i) {return e[4]});
+	net_max = max(net_values)
+	net_min = min(net_values)
+	console.log(net_max, net_min)
+	for(i in all_windows){
+		var x = all_windows[i][2][0], 
+			y = all_windows[i][2][1], 
+			w = all_windows[i][0], 
+			h = all_windows[i][1], 
+			c = all_windows[i][3], 
+			net = all_windows[i][4], 
+			t = all_windows[i][5];
+		var box = infovis.rect(x, y, w, h)
+		if(net < 0){
+			net = Math.abs(net) / Math.abs(net_min)
+			var l = .90 - (.40 * net)
+			var color = 'hsl(0deg, .5, '+l+')';
+		} else {
+			net = net / net_max
+			var l = .90 - (.40 * net)
+			var color = 'hsl(120deg, .5, '+l+')';
+		}
+		// color = "hsl(120deg, .5, .5)"
+		box.attr('fill', color)
+		
+		if(w * h > 2000){
+			var newlines = 0
+			var text = infovis.text(x+5, y, t).attr('text-anchor', 'start');
+			var words = t.split(" ");
+			var temp_text = "";
+			for(var i = 0; i < words.length; i++){
+				text.attr("text", temp_text + " " + words[i]);
+				// Here we check whether the line if longer than the width of the box
+				// we subtract 5 for padding on the right side, also make sure i is not 0
+				// so that the first character is not a new line
+				if (text.getBBox().width > w - 5 && i != 0) { 
+					temp_text += "\n" + words[i];
+					newlines++;
+				} else {
+					temp_text += " " + words[i];
+				}
+			}
+			text.attr("text", temp_text.substring(1));
+			text.attr("y", y+10+(newlines*6))
+		}
+	}
+}
+
 $(document).ready(function(){
 	
 	// width and height of visualization
@@ -212,16 +282,22 @@ $(document).ready(function(){
 	
 	// The raphael object to draw to
 	var infovis = Raphael(document.getElementById("infovis"), w, h);
-	// window = [width, height, [x, y], color, opacity, text]
+	// window = [width, height, [x, y], color, rca, text]
 	var win = [w, h, [0, 0], null, null, null];
 	// Since data is heirarchical, call cluster function which will in turn call the tree function
 	cluster(data, win);
 	// With our global array of windows or rectangles to be, lets draw them
-	draw(infovis)
+	if(coloring == "rca")
+		draw(infovis)
+	else if(coloring == "net")
+		net_draw(infovis)
 	
 });
 
 </script>
+<style>
+td{padding:20px;}
+</style>
 {% endblock %}
 
 {% block content %}

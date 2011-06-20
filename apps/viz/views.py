@@ -4,15 +4,19 @@ from django.http import HttpResponse, Http404
 from apps.viz.models import *
 # For general Use
 from collections import defaultdict
-import json
 from django.utils import simplejson as json
 import time
+
+# from django.db.models import Avg, Max, Min, Count, Sum
+# x = Sitc4_feenstra_cpy.objects.values('country_id').annotate(total_exports=Sum('export_value'))
 
 def home(request):
 	return render_to_response('index.html')
 
 # Treemaps
 def treemap_of_exports(request, country_code = None, year = None):
+	# Is this an ajax request (ie did we just double click a node?)
+	coloring = request.GET.get('coloring', 'rca')
 	import time
 	s = time.time()
 	c = Country.objects.get(name_3char=country_code) if country_code else Country.objects.get(name_3char='deu')
@@ -21,12 +25,14 @@ def treemap_of_exports(request, country_code = None, year = None):
 	cpys = c.comtrade_cpys.filter(year=y, rca__gte=1)
 	exports = defaultdict(lambda: [])
 	for cpy in cpys:
-		# exports[cpy.product.leamer.id].append(cpy.export_value)
-		exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name))
+		if coloring == "net":
+			exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name, cpy.export_value - cpy.import_value))
+		elif coloring == "rca":
+			exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name, cpy.rca))
 		
 	# return HttpResponse(time.time() - s)
 	# return HttpResponse(json.dumps(exports.values()))
-	return render_to_response('treemap_of_exports.html', {'data': json.dumps(exports.values())})
+	return render_to_response('treemap_of_exports.html', {'data': json.dumps(exports.values()), 'coloring': coloring})
 
 def treemap_of_imports(request):
 	return render_to_response('treemap_of_imports.html')
