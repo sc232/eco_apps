@@ -5,6 +5,7 @@ from apps.viz.models import *
 # For general Use
 from collections import defaultdict
 import json
+from django.utils import simplejson as json
 import time
 
 def home(request):

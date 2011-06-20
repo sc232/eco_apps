@@ -20,5 +20,5 @@ urlpatterns = patterns('',
 	(r'^test/(?P<year>\d+)/(?P<path>.*)$', 'apps.viz.views.test'),
 
 	# Serve static files for dev
-	(r'^media/(?P<path>.*)$', 'django.views.static.serve', {'document_root': '/Users/alexandersimoes/Sites/eco_apps/media', 'show_indexes': True}),
+	# (r'^media/(?P<path>.*)$', 'django.views.static.serve', {'document_root': '/Users/alexandersimoes/Sites/eco_apps/media', 'show_indexes': True}),
 )
