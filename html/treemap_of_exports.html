@@ -80,36 +80,49 @@ function sum(list_numbers){
 // Returns the sum from an array of numbers
 function sum_list(list_of_lists, return_list){
 	var total = 0;
+	var list_to_return = []
 	for(var i = 0; i < list_of_lists.length; i++){
 		total += list_of_lists[i][0];
 	}
 	if(return_list){
-		return [total, list_of_lists[0][1]]
+		// return [total, list_of_lists[0][1]]
+		// Add all items that were in original list (i.e. color, text etc.)
+		for(i in list_of_lists[0]){
+			// list_to_return.push(list_of_lists[0][i]);
+			list_to_return.push(null);
+		}
+		// Overwrite first value in place of total
+		list_to_return[0] = total;
+		return list_to_return;
 	} else {
-		return total
+		return total;
 	}
 }
 
 // Warning: This is a recursive function! all variables must have 'var' keyword
 // so they are not global in scope otherwise this WILL fuck up your code
 function tree(list_items, win, is_cluster){
+	// LOCAL variables to be used
 	var w = win[0]; // width
 	var h = win[1]; // height
 	var pos = win[2]; // position of given window
 	var color = win[3];
 	var opacity = win[4];
+	var text = win[5];
 	var new_win; // window to be created
 	var other_win; // rest of area in given window
 	var new_list = new Array();
 	var total = 0;
 	var normalize = sum_list(list_items, false); // to divide by for creating list of percentages
 	var list_percentages = new Array();
+	// translate list of values into list of percentages
 	for(var i = 0; i < list_items.length; i++){
-		list_percentages[i] = [list_items[i][0]/normalize, list_items[i][1]];
+		list_percentages[i] = [list_items[i][0]/normalize, list_items[i][1], list_items[i][2]];
 	}
 	while(list_percentages.length > 0){
 		total +=  max_list(list_percentages, false);
 		var c = max_list(list_percentages, true)[1];
+		var t = max_list(list_percentages, true)[2];
 		new_list.push(max_list(list_percentages, true));
 		var index_of_max = list_percentages.indexOf(max_list(list_percentages, true));
 		list_percentages.splice(index_of_max, 1);
@@ -123,12 +136,12 @@ function tree(list_items, win, is_cluster){
 		}
 		if (total >= .4){
 			if(h < w){
-				new_win = [w*total, h, pos, c, opacity];
-				other_win = [w*(1 - total), h, [pos[0]+w*total, pos[1]], c, opacity];
+				new_win = [w*total, h, pos, c, opacity, t];
+				other_win = [w*(1 - total), h, [pos[0]+w*total, pos[1]], c, opacity, t];
 			}
 			else {
-				new_win = [w, h*total, pos, c, opacity];
-				other_win = [w, h*(1 - total), [pos[0], pos[1]+h*total], c, opacity];
+				new_win = [w, h*total, pos, c, opacity, t];
+				other_win = [w, h*(1 - total), [pos[0], pos[1]+h*total], c, opacity, t];
 			}
 			tree(new_list, new_win, is_cluster);
 			tree(list_percentages, other_win,  is_cluster);
@@ -140,13 +153,21 @@ function tree(list_items, win, is_cluster){
 // Given a list of lists and parent window, this will generate a
 // full on treemap by adding the windows to the global variable all_windows
 function cluster(list_of_lists, win) {
+	// To create the top parent level of windows we sum their children
 	var list_of_sums = new Array();
 	for(i in list_of_lists) {
+		// sum_list(list_of_lists, whether_or_not_return_as_a_list)
+		// Add this new sum (as a list) to the end of the list_of_sums array
 		list_of_sums.push(sum_list(list_of_lists[i], true));
 	}
-	// console.log(list_of_sums)
+	// tree(list_of_lists, parent_window, parent_level?)
+	// This will build the top level treemap aggregated by category
 	tree(list_of_sums, win, true)
+	// order the list of lists so that we can build children nodes 
+	// from largest to smallest
 	var ordered_lol = ordered_list(list_of_lists)
+	// for the children nodes also pass them to the tree funciton along with their
+	// parent windows
 	for(i in ordered_lol){
 		tree(ordered_lol[i], cluster_windows[i], false)
 	}
@@ -155,8 +176,32 @@ function cluster(list_of_lists, win) {
 // Loop through each window and draw it!
 function draw(infovis){
 	for(i in all_windows){
-		x = infovis.rect(all_windows[i][2][0], all_windows[i][2][1], all_windows[i][0], all_windows[i][1])
-		x.attr({'fill':all_windows[i][3]})
+		var x = all_windows[i][2][0], y = all_windows[i][2][1], w = all_windows[i][0], h = all_windows[i][1], c = all_windows[i][3], t = all_windows[i][5];
+		var box = infovis.rect(x, y, w, h)
+		box.attr({'fill': c})
+		
+		if(w * h > 2000){
+			var newlines = 0
+			var text = infovis.text(x+5, y, t).attr('text-anchor', 'start');
+			var words = t.split(" ");
+			var temp_text = "";
+			for(var i = 0; i < words.length; i++){
+				text.attr("text", temp_text + " " + words[i]);
+				// Here we check whether the line if longer than the width of the box
+				// we subtract 5 for padding on the right side, also make sure i is not 0
+				// so that the first character is not a new line
+				if (text.getBBox().width > w - 5 && i != 0) { 
+					temp_text += "\n" + words[i];
+					newlines++;
+				} else {
+					temp_text += " " + words[i];
+				}
+			}
+			text.attr("text", temp_text.substring(1));
+			text.attr("y", y+10+(newlines*6))
+		}
+		
+		// console.log(all_windows[i][5])
 	}
 }
 
@@ -167,9 +212,11 @@ $(document).ready(function(){
 	
 	// The raphael object to draw to
 	var infovis = Raphael(document.getElementById("infovis"), w, h);
-	// window = [width, height, [x, y], color, opacity]
-	var win = [w, h, [0, 0], null, null];
+	// window = [width, height, [x, y], color, opacity, text]
+	var win = [w, h, [0, 0], null, null, null];
+	// Since data is heirarchical, call cluster function which will in turn call the tree function
 	cluster(data, win);
+	// With our global array of windows or rectangles to be, lets draw them
 	draw(infovis)
 	
 });

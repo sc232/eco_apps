@@ -4,7 +4,7 @@ DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
 ADMINS = (
-    # ('Your Name', 'your_email@domain.com'),
+    ('Alex Simoes', 'alexandersimoes@gmail.com'),
 )
 
 MANAGERS = ADMINS
@@ -17,6 +17,14 @@ DATABASES = {
         'PASSWORD': 'E_8T;iwU:59b',                  # Not used with sqlite3.
         'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
         'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
+    },
+    'live': {
+        'ENGINE': 'mysql',
+        'NAME': 'complexity',
+        'USER': 'alex',
+        'PASSWORD': '1Alex23',
+        'HOST': 'sql.media.mit.edu',
+        'PORT': '',
     }
 }
 

@@ -11,15 +11,17 @@ def home(request):
 	return render_to_response('index.html')
 
 # Treemaps
-def treemap_of_exports(request):
+def treemap_of_exports(request, country_code = None, year = None):
 	import time
 	s = time.time()
-	c = Country.objects.get(name_3char='deu')
-	cpys = c.comtrade_cpys.filter(year=2009, rca__gte=1)
+	c = Country.objects.get(name_3char=country_code) if country_code else Country.objects.get(name_3char='deu')
+	y = year if year else 2000
+
+	cpys = c.comtrade_cpys.filter(year=y, rca__gte=1)
 	exports = defaultdict(lambda: [])
 	for cpy in cpys:
 		# exports[cpy.product.leamer.id].append(cpy.export_value)
-		exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color))
+		exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name))
 		
 	# return HttpResponse(time.time() - s)
 	# return HttpResponse(json.dumps(exports.values()))
@@ -90,7 +92,7 @@ def stacked_share(request):
 def stacked_value(request):
 	return render_to_response('stacked_value.html')
 
-def proximity_network(request, product_code=None):
+def proximity_network(request, product_code=78, num_neighbors=5):
 	# Is this an ajax request (ie did we just double click a node?)
 	format = request.GET.get('format', False)
 	# What is the ID of the node we're getting data for?
@@ -113,7 +115,7 @@ def proximity_network(request, product_code=None):
 	#
 	my_set_of_countries = set(product_dict_of_countries[a_product.id])
 	# This will hold ALL the products with their proximities
-	prox_dict = {}
+	proximity_list = []
 	# For each product's list of countries see if there is any
 	# overlap (intersection) with the given product_id's list of countries, this
 	# will be the numerator. Also, for each product's list of countries find
@@ -132,17 +134,21 @@ def proximity_network(request, product_code=None):
 			# return floating point values
 			proximity = number_of_countries_in_intersection / float(max_countries)
 			# now add it to the dictionary EXCEPT if it is the given product
-			if product_id != a_product.id and proximity > 0.33:
-				this_product = products.get(pk=product_id)
-				prox_dict[product_id] = [this_product.name, this_product.code, this_product.leamer.color, proximity, this_product.ps_size]
+			if product_id != a_product.id:
+				proximity_list.append((product_id, proximity))
+				# prox_dict[product_id] = proximity
+				# this_product = products.get(pk=product_id)
+				# prox_dict[product_id] = [this_product.name, this_product.code, this_product.leamer.color, proximity, this_product.ps_size]
 	# to be returned
-	# data = {}
-	# for product_id, proximity in prox_dict.items():
-	# 	if proximity > 0.3:
-	# 		data[product_id] = proximity
+	data = {}
+	proximity_list.sort(key=lambda tup:-tup[1])
+	while len(data) < int(num_neighbors):
+		this_product = products.get(pk=proximity_list[len(data)][0])
+		data[proximity_list[len(data)][0]] = [this_product.name, this_product.code, this_product.leamer.color, proximity_list[len(data)][1], this_product.ps_size]
+	#
 	if format:
-		return HttpResponse(json.dumps(prox_dict))
-	return render_to_response('proximity_network.html', {'selected_product':a_product, 'data': json.dumps(prox_dict)})
+		return HttpResponse(json.dumps(data))
+	return render_to_response('proximity_network.html', {'selected_product':a_product, 'data': json.dumps(data)})
 
 def test(request, year, path):
 	return HttpResponse(year, path)

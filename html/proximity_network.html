@@ -257,7 +257,16 @@ function drawLabel( ctx, text, p1, p2, alignment, padding ){
 		// Use data from DB
 		var data = {{data|safe}};
 		// create the system with sensible repulsion/stiffness/friction
-		var sys = arbor.ParticleSystem(50, 200, 0.1)
+		// var sys = arbor.ParticleSystem(15, 0, 0.95)
+		var sys = arbor.ParticleSystem({
+			friction:0.1, 
+			stiffness:5000, 
+			repulsion:2, 
+			gravity: true, 
+			fps: 60, 
+			dt: 0.08, 
+			precision: 1.0
+		});
 		// use center-gravity to make the graph settle nicely (ymmv)
 		sys.parameters({gravity:true}) 
 		// our newly created renderer will have its .init() method called shortly by sys...
@@ -274,7 +283,8 @@ function drawLabel( ctx, text, p1, p2, alignment, padding ){
 			// data = [0=name, 1=code, 2=color, 3=prox, 4=ps_size]
 			sys.addNode(i, {name:data[i][0], code: data[i][1], color: data[i][2], size: data[i][4], selected: false})
 			sys.addEdge({{selected_product.id}}, i, {
-				length:Math.pow((1-data[i][3])+1, 4), 
+				// length:Math.pow((1-data[i][3])+1, 4), 
+				// length: 100,
 				proximity:data[i][3]
 			})
 			// add to output list
@@ -303,7 +313,7 @@ p.selected_node {
 {% block content %}
 <h1>Proximity Network</h1>
 <h2>{{selected_product.name}}</h2>
-<canvas id="viewport" width="1200" height="600"></canvas>
+<canvas id="viewport" width="800" height="600"></canvas>
 <div id="output">
 	<h3>Output</h3>
 	<div class="node_show">
