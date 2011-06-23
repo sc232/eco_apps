@@ -22,7 +22,7 @@ def treemap_of_exports(request, country_code = None, year = None):
 	c = Country.objects.get(name_3char=country_code) if country_code else Country.objects.get(name_3char='deu')
 	y = year if year else 2000
 
-	cpys = c.comtrade_cpys.filter(year=y, rca__gte=0.1)
+	cpys = c.comtrade_cpys.filter(year=y, rca__gte=1).order_by('-export_value')
 	exports = defaultdict(lambda: [])
 	for cpy in cpys:
 		if coloring == "net":

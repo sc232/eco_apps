@@ -104,7 +104,61 @@ h2 {
 #infovis {
 	border: 1px solid black;
 }
-
+/*
+    // ========================================== \\
+   ||               Mouseover!                     ||
+    \\ ========================================== //
+*/
+#context_info {
+	border:1px solid #ccc;
+	-moz-box-shadow:#555 2px 2px 8px;
+	-webkit-box-shadow:#555 2px 2px 8px;
+/*	-o-box-shadow:#555 2px 2px 8px;*/
+	box-shadow:#555 2px 2px 8px;
+	color: #dedede;
+	display: none;
+    filter: alpha(opacity=90);
+    font-size: 10px;
+    background-color: black;
+    opacity: 0.9;
+	position: absolute;
+    padding:7px;
+    width: 250px;
+}
+#context_info br {
+	line-height: 15px;
+}
+#context_info a {
+	border-bottom: 1px solid white;
+	color: #dedede;
+	float: right;
+	font-size: 14px;
+	font-weight: bold;
+	line-height: 125%;
+	padding: 0 0 6px 0;
+	text-decoration: none;
+	width: 190px;
+}
+#context_info a:hover {
+	color: #fff;
+}
+#context_info table {
+	float: right;
+	margin: 4px 0px 0 0px;
+	width: 190px;
+}
+#context_info table td {
+/*	border-bottom: solid 1px #222;*/
+	padding: 0 0 0 0;
+}
+#context_info table td.value {
+	text-align: right;
+	padding: 0 0 0 10px;
+}
+#context_info img {
+	float: left;
+	width: 50px;
+}
 
 
 
