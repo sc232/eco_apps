@@ -22,6 +22,8 @@ urlpatterns = patterns('',
     (r'^proximity_network/(?P<product_code>\d+)/(?P<num_neighbors>\d{1,2})/$', 'apps.viz.views.proximity_network'),
 
 	(r'^test/(?P<year>\d+)/(?P<path>.*)$', 'apps.viz.views.test'),
+	
+	(r'^map/$', 'apps.viz.views.map'),
 
 	# Serve static files for dev
 	 (r'^media/(?P<path>.*)$', 'django.views.static.serve', {'document_root': '/home/sarah/Documents/mit/eco_apps/media', 'show_indexes': True}),

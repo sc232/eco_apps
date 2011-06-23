@@ -1,0 +1,41 @@
+{% extends "template.html" %}
+
+{% block title %}Treemap of Exports{% endblock %}
+
+{% block js %}
+<script type="text/javascript" src="/media/js/libs/raphael_1.5.2.js"></script>
+<script type="text/javascript">
+data = {{data|safe}};
+$(document).ready(function(){
+		
+	var path = "M"+data[0][0]+" "+data[0][1];
+	for(point in data){
+		if(data[point].length <3 && point != 0){
+			path += "L"+ data[point][0]+ " "+ data[point][1]
+		}
+	}
+	// console.log(path)
+	var paper = Raphael("infovis", 606, 600);
+	paper.path(path)
+	
+});
+
+</script>
+<style>
+div.a{
+	background: blue;
+	padding:20px;
+	position:absolute;
+	top: 0;
+	left: 0;
+	width: 100px;
+	height: 100px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="a">hiiiiii</div>
+<h1>Map</h1>
+<div id="infovis">
+{% endblock %}

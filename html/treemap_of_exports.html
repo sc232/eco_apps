@@ -132,6 +132,7 @@ function tree(list_items, win, is_cluster){
 			if(is_cluster){
 				cluster_windows.push(win)
 			} else {
+				win[5] = t;
 				all_windows.push(win);	
 			}
 			return;
@@ -175,61 +176,162 @@ function cluster(list_of_lists, win) {
 	}
 }
 
+function get_color(coloring, val, leamer_color, max_val, min_val){
+	var color = ''
+	if(coloring == "net"){
+		// It's negative (country imports more than it exports of this prod)
+		if(val < 0){
+			var val_percent = Math.abs(val) / Math.abs(min_val);
+			// the l or lightness value of HSL coloring (between 0 and 1)
+			// see http://en.wikipedia.org/wiki/HSL_and_HSV
+			// the higher the val the darker it will be (ie the more red)
+			// since we are dealing with negative numbers
+			var l = .90 - (.40 * val_percent);
+			color = 'hsl(0deg, .5, '+l+')';
+		} else {
+			var val_percent = val / max_val;
+			// l = lightness of HSL coloring
+			var l = .90 - (.40 * val_percent)
+			color = 'hsl(120deg, .5, '+l+')';
+		}
+	}
+	else if(coloring =="rca"){
+		// convert leamer color which is in hex to HSL object
+		var hsl = Raphael.rgb2hsl(leamer_color)
+		// set lightness bin by default to 4 (very light)
+		var l_bin = 4;
+		if(val > 2) l_bin = 3;
+		if(val > 4) l_bin = 2;
+		if(val > 8) l_bin = 1;
+		if(val > 16) l_bin = 0;
+		// The difference between this color's lightness and 1 (white)
+		// is different for different leamer colors
+		var diff = 1 - hsl.l
+		// divide the difference into 6 bins
+		var bins = diff / 6
+		// set lightness to this color's current lightness plus the number of bins
+		l = hsl.l + bins*l_bin
+		color = "hsl("+hsl.h+", "+hsl.s+", "+l+")"
+	}
+	return color;
+}
+
+function draw_text(infovis, x, y, w, h, text){
+	// only return if area is of a certain size (2000px) ~arbritrary
+	if(w * h > 2000){
+		var num_newlines = 0
+		// give padding on left side
+		var svg_text = infovis.text(x+5, y, text).attr('text-anchor', 'start');
+		// split the text string into an array of words
+		var words = text.split(" ");
+		var temp_text = "";
+		for(var i = 0; i < words.length; i++){
+			svg_text.attr("text", temp_text + " " + words[i]);
+			// Here we check whether the line is longer than the width of the box
+			// we subtract 5 for padding on the right side, also make sure i is not 0
+			// so that the first character is not a new line
+			if (svg_text.getBBox().width > w - 10 && i != 0) { 
+				temp_text += "\n" + words[i];
+				num_newlines++;
+			} else {
+				temp_text += " " + words[i];
+			}
+		}
+		svg_text.attr("text", temp_text.substring(1));
+		svg_text.attr("y", y+10+(num_newlines*6))
+		return svg_text;
+	}
+}
+
+// This is the mouseover event for the treemap
+function show_info(event, text, val, share, rca) {
+	if(!$('#context_info').length){
+		var context_info = $('<div id="context_info">').append(
+			'<img src="/media/img/leamer_icons/unclassified.png" />'+
+			'<a href="#">INSULATED, ELECT.WIRE, CABLE, BARS, STRIP AND THE LIKE</a>'
+		).append(
+			'<table>'+
+			'<tr><td><strong>Export Value</strong></td><td></td><td class="value"></td></tr>'+
+			'<tr><td><strong>Export Share</strong></td><td></td><td class="value"></td></tr>'+
+			'<tr><td><strong>RCA</strong></td><td></td><td class="value"></td></tr>'+
+			'</table>'
+		)
+		$("#container").append(context_info)
+	}
+	// set title
+	$('#context_info a').text(text)
+	$('#context_info tr:eq(2) td:eq(2)').text(val)
+	$('#context_info').css({
+		'top': event.pageY + 20,
+		'left': event.pageX + 20
+	}).show()
+}
+
+// This is the mouseover event for the treemap
+function hide_info(event) {
+	// $('#context_info').hide()
+}
+
 // Loop through each window and draw it!
-function draw(infovis){
-	for(i in all_windows){
+function draw(infovis, coloring){
+	// Put all coloring values into an array to pass to max and min funcitons
+	// if we are coloring by RCA, e[4] will be the RCA value or we are coloring
+	// based on net export value, this will be the net export value
+	net_values = $.map(all_windows, function(e, i) {return e[4]});
+	net_max = max(net_values)
+	net_min = min(net_values)
+	$.each(all_windows, function(i, item){
+		var box_set = infovis.set();
 		var x = all_windows[i][2][0], 
 			y = all_windows[i][2][1], 
 			w = all_windows[i][0], 
 			h = all_windows[i][1], 
-			c = all_windows[i][3], 
-			r = all_windows[i][4], 
-			t = all_windows[i][5];
-		var box = infovis.rect(x, y, w, h)
-		// box.attr({'fill': c, 'fill-opacity': 0.5})
-		hsl = infovis.raphael.rgb2hsl(c)
-		
-		var lightness = 4;
-		if(r > 2) lightness = 3;
-		if(r > 4) lightness = 2;
-		if(r > 8) lightness = 1;
-		if(r > 16) lightness = 0;
-		diff = 1 - hsl.l
-		segs = diff / 6
-		xx = hsl.l + segs*lightness
-		// console.log(xx)
-		box.attr("fill", "hsl("+hsl.h+", "+hsl.s+", "+xx+")")
-		
-		if(w * h > 2000){
-			var newlines = 0
-			var text = infovis.text(x+5, y, t).attr('text-anchor', 'start');
-			var words = t.split(" ");
-			var temp_text = "";
-			for(var i = 0; i < words.length; i++){
-				text.attr("text", temp_text + " " + words[i]);
-				// Here we check whether the line if longer than the width of the box
-				// we subtract 5 for padding on the right side, also make sure i is not 0
-				// so that the first character is not a new line
-				if (text.getBBox().width > w - 5 && i != 0) { 
-					temp_text += "\n" + words[i];
-					newlines++;
-				} else {
-					temp_text += " " + words[i];
-				}
-			}
-			text.attr("text", temp_text.substring(1));
-			text.attr("y", y+10+(newlines*6))
-		}
-		
-		// console.log(all_windows[i][5])
-	}
+			leamer_color = all_windows[i][3], 
+			coloring_val = all_windows[i][4], 
+			text = all_windows[i][5];
+		box = infovis.rect(x, y, w, h)
+		// Get proper coloring for box (whether by RCA or net export value)
+		var color = get_color(coloring, coloring_val, leamer_color, net_max, net_min)
+		box.attr("fill", color)
+		raphael_text = draw_text(infovis, x, y, w, h, text)
+		box_set.push(box, raphael_text)
+		box_set.mousemove(function(e){
+			show_info(e, text, coloring_val, 0, 0)
+		})
+		box_set.mouseout(hide_info)
+	})
+	// for(i in all_windows){
+	// 	var x = all_windows[i][2][0], 
+	// 		y = all_windows[i][2][1], 
+	// 		w = all_windows[i][0], 
+	// 		h = all_windows[i][1], 
+	// 		leamer_color = all_windows[i][3], 
+	// 		coloring_val = all_windows[i][4], 
+	// 		text = all_windows[i][5];
+	// 	// Draw box
+	// 	// var box = infovis.rect(x, y, w, h)
+	// 	box.mouseover(function(){
+	// 		console.log(all_windows[i][5])
+	// 	})
+	// 	// Get proper coloring for box (whether by RCA or net export value)
+	// 	var color = get_color(coloring, coloring_val, leamer_color, net_max, net_min)
+	// 	box.attr("fill", color)
+	// 	// Set text
+	// 	// draw_text(infovis, x, y, w, h, text)
+	// 	// events
+	// 	// box.mouseover(function(event){
+	// 	// 	show_info(event, text);
+	// 	// });
+	// 	// box.mouseover(function(event){
+	// 		// console.log(text)
+	// 	// });
+	// 	// box.mouseout(hide_info);
+	// 
+	// }
 }
 
 // Loop through each window and draw it with net values for coloring!
 function net_draw(infovis){
-	net_values = $.map(all_windows, function(e, i) {return e[4]});
-	net_max = max(net_values)
-	net_min = min(net_values)
 	console.log(net_max, net_min)
 	for(i in all_windows){
 		var x = all_windows[i][2][0], 
@@ -287,16 +389,21 @@ $(document).ready(function(){
 	// Since data is heirarchical, call cluster function which will in turn call the tree function
 	cluster(data, win);
 	// With our global array of windows or rectangles to be, lets draw them
-	if(coloring == "rca")
-		draw(infovis)
-	else if(coloring == "net")
-		net_draw(infovis)
+	draw(infovis, coloring)
 	
 });
 
 </script>
 <style>
-td{padding:20px;}
+div.a{
+	background: blue;
+	padding:20px;
+	position:absolute;
+	top: 0;
+	left: 0;
+	width: 100px;
+	height: 100px;
+}
 </style>
 {% endblock %}
 
