@@ -1,0 +1,18 @@
+{% extends "treemap.html" %}
+
+{% block title %}Treemap of Product Traders{% endblock %}
+
+{% block content %}
+<h1>{{title|safe}}</h1>
+
+<a href="./../"> return to home</a>
+
+<script type="text/javascript">
+  var title = {{title|safe}};
+  document.write("<h1>"+title+"</h1>");
+
+</script>
+
+<div id="infovis"></div>
+
+{% endblock %}

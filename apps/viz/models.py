@@ -47,6 +47,19 @@ class Sitc4(models.Model):
 	def __unicode__(self):
 		return self.code + self.name
 
+###########################################
+###########################################
+
+class Sitc4_feenstra_trade(models.Model):
+	year = models.PositiveSmallIntegerField(max_length=4)
+	icode = models.FloatField(null=True)
+	importer = models.ForeignKey(Country, related_name="trade_ImpCountries")
+	ecode = models.FloatField(null=True)
+	exporter = models.ForeignKey(Country, related_name="trade_ExpCountries")
+	product = models.ForeignKey(Sitc4, related_name="trade_products")
+	import_value = models.FloatField(null=True)
+
+
 ###############################################################################
 ###############################################################################
 

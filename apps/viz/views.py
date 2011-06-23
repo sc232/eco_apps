@@ -13,10 +13,83 @@ import time
 def home(request):
 	return render_to_response('index.html')
 
+"""
+based on a specified importer I, exporter E, and year Y:
+  creates a treemap of all products imported by the I from E in Y
+"""
+def treemap_of_bilateralTrade(request):
+	#get country DB object based on args from the URL string
+	qImp = request.GET.get('imp', False)
+	impObj = Country.objects.get(name_3char=qImp)
+	qExp = request.GET.get('exp', False)
+	expObj = Country.objects.get(name_3char=qExp)
+	qYear = request.GET.get('y', False)
+
+	#get the list of products that are traded between the 2 countries
+	products = impObj.trade_ImpCountries.filter(year=qYear).filter(exporter=expObj.id).values("product").annotate(Sum("import_value")).order_by("import_value__sum")
+
+#for each product traded
+	imports = defaultdict(lambda: [])
+	for p in products:			
+	#get the leamer ID & color
+		productObj = Sitc4.objects.get(id=p["product"])   
+		name = productObj.name
+		leamerID = productObj.leamer.id
+		leamerColor = productObj.leamer.color
+		importValueSum = p["import_value__sum"];
+	#	if importValueSum < 5 :
+#			continue
+
+		#add the product to the list which ecorresponds to its leamer ID
+		imports[leamerID].append((importValueSum, leamerColor, name,1))
+
+	title = "Exports from %s to %s in %s" % ( expObj.name, impObj.name, qYear)
+
+
+# return HttpResponse(time.time() - s)
+#	return HttpResponse(json.dumps(partners.values()))
+	return render_to_response('treemap_of_bilateralTrade.html', {'data': json.dumps(imports.values()),'title':title, 'coloring':'rca'})
+
+
+"""
+based on a specified country C, its role R (as importer or exporter), and year Y:
+  creates a treemap of all products that C traded in year Y. If we care about C as an importer, then create a treemap of products which C imported.
+"""
+def treemap_of_countryProducts(request):
+	#get country object
+	qCou = request.GET.get('c', False)
+	countryObj = Country.objects.get(name_3char=qCou)
+
+	#get whether we care about this country as an importer or exporter
+	qRole = request.GET.get('r', False)
+	#get year
+	qYear = request.GET.get('y', False)
+
+	#get all products traded by this country
+	cpys = countryObj.comtrade_cpys.filter(year=qYear, rca__gte=1)
+
+	#for each product traded
+	products = defaultdict(lambda: [])
+	for cpy in cpys:
+		print cpy
+		#figure out whether we wanted the amount imported or exported (based on the role variable)
+		currValue = cpy.export_value if qRole == 'exp' else cpy.import_value
+		#add the product to the list with the correct leamer ID
+		products[cpy.product.leamer.id].append((currValue, cpy.product.leamer.color, cpy.product.name,1))
+
+	#generate Page title 	
+	title = "Products %s by %s in %s" % ( "Exported" if qRole == 'exp' else "Imported", countryObj.name,qYear)
+
+	# return HttpResponse(time.time() - s)
+	# return HttpResponse(json.dumps(exports.values()))
+	return render_to_response('treemap_of_countryProducts.html', {'data': json.dumps(products.values()), 'title' : title,'coloring':'rca' })
+
+
 # Treemaps
 def treemap_of_exports(request, country_code = None, year = None):
 	# Is this an ajax request (ie did we just double click a node?)
 	coloring = request.GET.get('coloring', 'rca')
+
 	import time
 	s = time.time()
 	c = Country.objects.get(name_3char=country_code) if country_code else Country.objects.get(name_3char='deu')
@@ -29,13 +102,113 @@ def treemap_of_exports(request, country_code = None, year = None):
 			exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name, cpy.export_value - cpy.import_value))
 		elif coloring == "rca":
 			exports[cpy.product.leamer.id].append((cpy.export_value, cpy.product.leamer.color, cpy.product.name, cpy.rca))
-		
+
 	# return HttpResponse(time.time() - s)
 	# return HttpResponse(json.dumps(exports.values()))
 	return render_to_response('treemap_of_exports.html', {'data': json.dumps(exports.values()), 'coloring': coloring})
 
+
+
 def treemap_of_imports(request):
 	return render_to_response('treemap_of_imports.html')
+
+	# return HttpResponse(json.dumps(exports.values()))
+	return render_to_response('treemap_of_countryProducts.html', {'data': json.dumps(products.values()), 'title' : title })
+
+"""
+based on a specified product P, the traders' role of interest R (as importers or exporters), and year Y:
+  creates a treemap of all importers(or exporters depending on R) of P in year Y. 
+"""
+def treemap_of_productTraders(request):
+	regionColor = { "LCN": "#00FF00", "ECS": "#CC0099", "SAS":"#0000FF", "SSF" : "#FFFF00", "MEA":"#CC9900", "EAS" : "#FF0000", "NAC": "#00FFFF", "NA" : "#660000", "" : "#FFFFFF"}
+
+	qProd = request.GET.get('p', False)
+	prodObj = Sitc4.objects.get(id=qProd)
+	#get whether we care about the importers or exporters
+	qRole = request.GET.get('r', False)
+	#get year
+	qYear = request.GET.get('y', False)
+	
+	cpys = prodObj.comtrade_product_cpys.filter(year=qYear, rca__gte=1)
+
+	traders = defaultdict(lambda: [])
+	for cpy in cpys:
+		currTrader = cpy.country 
+		if currTrader.name == "World": 
+			continue
+		regionID = currTrader.region_id
+		currColor = regionColor.get(regionID,"#000000")
+
+		value = cpy.export_value if qRole == 'exp' else cpy.import_value
+
+		#add this trade partner to the correct list depending on their region
+		traders[regionID].append((value, currColor, currTrader.name, 0))
+
+	title = "%s of '%s' in %s" % ( "Exporters" if qRole == 'exp' else "Importer", prodObj.name, qYear)
+
+	return render_to_response('treemap_of_productTraders.html', {'data': json.dumps(traders.values()), 'title':title, 'coloring': 'rca'})
+
+
+
+"""
+based on a specified country C, its role R (as importer or exporter), and year Y:
+  creates a treemap of all trade partners of C in year Y. If we care about C as an importer, then create a treemap of countries which exported to C.
+"""
+def treemap_of_tradePartners(request):
+	#determines the color associated with a particular region in the world
+	regionColor = { "LCN": "#00FF00", "ECS": "#CC0099", "SAS":"#0000FF", "SSF" : "#FFFF00", "MEA":"#CC9900", "EAS" : "#FF0000", "NAC": "#00FFFF", "NA" : "#660000", "" : "#FFFFFF"}
+
+	#get country object
+	qCou = request.GET.get('c', False)
+	countryObj = Country.objects.get(name_3char=qCou)
+	#get whether we care about this country as an importer or exporter
+	qRole = request.GET.get('r', False)
+	#get year
+	qYear = request.GET.get('y', '1999')
+
+
+	#look at different rows depending on whether we are interested in this country as an importer or exporter
+	relevantRows = countryObj.trade_ImpCountries if qRole == 'exp' else countryObj.trade_ExpCountries
+	partnerField = "exporter" if qRole == 'exp' else "importer"
+	#gets a dictionary of trade partners and how much was imported from them
+ 	partnerRows = relevantRows.filter(year=qYear)
+
+	#   filter by product ID
+	qProd = request.GET.get('p', False)
+	if qProd :
+		partnerRows = partnerRows.filter(product=qProd)
+
+	partnerRows = partnerRows.values(partnerField).annotate(Sum("import_value")).order_by("import_value__sum")
+
+	#for each trade partner
+	partners = defaultdict(lambda: [])
+	for p in partnerRows:		
+		print p
+		#figure out which region they are part of
+		partnerObj = Country.objects.get(id=p[partnerField])
+		name = partnerObj.name
+		if name == "World": 
+			continue
+		
+		regionID = partnerObj.region_id
+		currColor = regionColor.get(regionID,"#000000")
+		#add this trade partner to the correct list depending on their region
+		partners[regionID].append((p["import_value__sum"], currColor,name,0))
+
+	title = "%s Partners of %s in %s" % ("Export" if qRole == 'exp' else "Import", countryObj.name, qYear)
+
+
+	#	print "%s\t%s" %( Country.objects.get(id=p[partnerField]), p['import_value__sum'] )
+
+	# return HttpResponse(time.time() - s)
+	return render_to_response('treemap_of_tradePartners.html', {'data': json.dumps(partners.values()), 'title':title, 'coloring': 'rca'})
+
+
+
+
+
+
+
 
 # Product Space
 def product_space(request):
