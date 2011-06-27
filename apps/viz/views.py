@@ -13,6 +13,44 @@ import time
 def home(request):
 	return render_to_response('index.html')
 
+def treemap_custom(request) :
+
+	#get country DB object based on args from the URL string
+	qImp = request.GET.get('imp', False)
+	if qImp :
+		impObj = Country.objects.get(name_3char=qImp)
+
+	qExp = request.GET.get('exp', False)
+	if qExp :
+		expObj = Country.objects.get(name_3char=qExp)
+
+	#specify a product or a leamer but not both
+	qProd = request.GET.get('prod', False)
+	if qProd : 
+		prodObj = Sitc4.objects.get(id=qProd)
+	else :
+		qLeamer = request.GET.get('leam', False)
+		if qLeamer : 
+			leamerObj = Sitc4_leamer_objects.get(id=qLeamer)
+
+	qHierarchy = request.GET.get('heir', False)
+
+	#set a threshold value for inclusion
+	qThreshold = request.GET.get('thr', False)
+	qYear = request.GET.get('y', False)
+	
+
+# Can be intermediate: "trade_direction (IMP vs. EXP)", "importer(country_id)", "exporter(country_id)", "region(region_id)", "continent(continent)", "income", "product(SITC4)", "leamer(1-11)", "year"
+
+#the last value in the hierarchy is the actual value
+# Can only be last: "import_value","export_value, "total_trade", "net", "market_share"
+
+	hierarchy = ["leamer","product"]
+
+
+	products = impObj.trade_ImpCountries.filter(year=qYear, exporter=expObj.id).values("product").annotate(Sum("import_value")).order_by("import_value__sum")
+
+
 """
 based on a specified importer I, exporter E, and year Y:
   creates a treemap of all products imported by the I from E in Y
@@ -24,9 +62,10 @@ def treemap_of_bilateralTrade(request):
 	qExp = request.GET.get('exp', False)
 	expObj = Country.objects.get(name_3char=qExp)
 	qYear = request.GET.get('y', False)
+	qThreshold = float(request.GET.get('thr', False))
 
 	#get the list of products that are traded between the 2 countries
-	products = impObj.trade_ImpCountries.filter(year=qYear).filter(exporter=expObj.id).values("product").annotate(Sum("import_value")).order_by("import_value__sum")
+	products = impObj.trade_ImpCountries.filter(year=qYear, exporter=expObj.id).values("product").annotate(Sum("import_value")).order_by("import_value__sum")
 
 #for each product traded
 	imports = defaultdict(lambda: [])
@@ -37,8 +76,10 @@ def treemap_of_bilateralTrade(request):
 		leamerID = productObj.leamer.id
 		leamerColor = productObj.leamer.color
 		importValueSum = p["import_value__sum"];
-	#	if importValueSum < 5 :
-#			continue
+		#if user has defined a threshold value, then filter by it
+		if qThreshold :			
+			if importValueSum < qThreshold :	
+				continue
 
 		#add the product to the list which ecorresponds to its leamer ID
 		imports[leamerID].append((importValueSum, leamerColor, name,1))
@@ -61,34 +102,73 @@ def treemap_of_countryProducts(request):
 	countryObj = Country.objects.get(name_3char=qCou)
 
 	#get whether we care about this country as an importer or exporter
-	qRole = request.GET.get('r', False)
+	# imp, exp, net
+	qVal = request.GET.get('v', False)
+
 	#get year
 	qYear = request.GET.get('y', False)
+
+	#get threshold
+	qThreshold = float(request.GET.get('thr',False))
 
 	#get all products traded by this country
 	cpys = countryObj.comtrade_cpys.filter(year=qYear, rca__gte=1)
 
 	#for each product traded
 	products = defaultdict(lambda: [])
+	currValue = 0
+	colorParam = 0
+	
 	for cpy in cpys:
-		print cpy
+
 		#figure out whether we wanted the amount imported or exported (based on the role variable)
-		currValue = cpy.export_value if qRole == 'exp' else cpy.import_value
+	
+		if qVal == "net" :
+			currValue = cpy.export_value
+			colorVal = cpy.export_value - cpy.import_value		
+		else :
+			currValue = cpy.import_value if qVal == "imp" else cpy.export_value
+			colorVal = cpy.rca
+
+
+		#if user has defined a threshold value, then filter by it
+		if qThreshold :			
+			if currValue < qThreshold :	
+				continue
+
+
 		#add the product to the list with the correct leamer ID
-		products[cpy.product.leamer.id].append((currValue, cpy.product.leamer.color, cpy.product.name,1))
+		products[cpy.product.leamer.id].append((currValue, cpy.product.leamer.color, cpy.product.name,colorVal))
+
+	
+#		print "%s , %s" % (cpy.product.name, currValue)
+		
+	for leamer in products:
+		leamerObj = Sitc4_leamer.objects.get(id=leamer)
+		print leamerObj.name
+		print products[leamer]
+		print "\n\n"
 
 	#generate Page title 	
-	title = "Products %s by %s in %s" % ( "Exported" if qRole == 'exp' else "Imported", countryObj.name,qYear)
+	title = ""
+	colorScheme = ""
+	if qVal == "net" :
+		title = "Net trade by %s in %s" % (countryObj.name,qYear)
+		colorScheme = "net"
+	else :
+		title = "Products %s by %s in %s" % ( "Exported" if qVal == 'exp' else "Imported", countryObj.name,qYear)
+		colorScheme = "rca"
 
 	# return HttpResponse(time.time() - s)
 	# return HttpResponse(json.dumps(exports.values()))
-	return render_to_response('treemap_of_countryProducts.html', {'data': json.dumps(products.values()), 'title' : title,'coloring':'rca' })
+	return render_to_response('treemap_of_countryProducts.html', {'data': json.dumps(products.values()), 'title' : title,'coloring': colorScheme})
 
 
 # Treemaps
 def treemap_of_exports(request, country_code = None, year = None):
 	# Is this an ajax request (ie did we just double click a node?)
 	coloring = request.GET.get('coloring', 'rca')
+#	country_code = "mex"
 
 	import time
 	s = time.time()
@@ -128,6 +208,10 @@ def treemap_of_productTraders(request):
 	qRole = request.GET.get('r', False)
 	#get year
 	qYear = request.GET.get('y', False)
+
+	#get threshold
+	qThreshold = float(request.GET.get('thr',False))
+
 	
 	cpys = prodObj.comtrade_product_cpys.filter(year=qYear, rca__gte=1)
 
@@ -140,6 +224,12 @@ def treemap_of_productTraders(request):
 		currColor = regionColor.get(regionID,"#000000")
 
 		value = cpy.export_value if qRole == 'exp' else cpy.import_value
+
+		#if user has defined a threshold value, then filter by it
+		if qThreshold :			
+			if value < qThreshold :	
+				continue
+
 
 		#add this trade partner to the correct list depending on their region
 		traders[regionID].append((value, currColor, currTrader.name, 0))
