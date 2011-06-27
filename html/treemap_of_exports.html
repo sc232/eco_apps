@@ -6,6 +6,7 @@
 <script type="text/javascript" src="/media/js/libs/raphael_1.5.2.js"></script>
 <script type="text/javascript">
 var data = {{data|safe}};
+// console.log(JSON.stringify(data))
 var coloring = "{{coloring|safe}}";
 // Global Vars
 var all_windows = new Array(); // Holds all windows
@@ -89,8 +90,9 @@ function sum_list(list_of_lists, return_list){
 		// return [total, list_of_lists[0][1]]
 		// Add all items that were in original list (i.e. color, text etc.)
 		for(i in list_of_lists[0]){
-			// list_to_return.push(list_of_lists[0][i]);
-			list_to_return.push(null);
+			list_to_return.push(list_of_lists[0][i]);
+			// console.log(list_of_lists[0][i])
+			// list_to_return.push(0);
 		}
 		// Overwrite first value in place of total
 		list_to_return[0] = total;
